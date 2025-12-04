@@ -1,0 +1,393 @@
+#SCRIPTS FOR DATA PREPARATION AND CLEANING
+
+
+#Getting initial information about values in the table
+head -5 warehouse_messy_data.csv
+
+#Getting rid of extra spaces and saving changes through a temporary file
+awk -F',' '{
+for(i=1;i<=NF;i++) gsub(/^ +| +$/,"",$i)
+print
+}' OFS=',' warehouse_messy_data.csv > temp.csv && mv temp.csv warehouse_messy_data.csv
+
+#Checking for dublicates
+sort warehouse_messy_data.csv | uniq -d
+
+#Checking each column for empty values
+awk -F',' 'NR>1 {if($1=="" || $1=="NaN") print }' warehouse_messy_data.csv
+awk -F',' 'NR>1 {if($2=="" || $2=="NaN") print }' warehouse_messy_data.csv
+awk -F',' 'NR>1 {if($3=="" || $3=="NaN") print }' warehouse_messy_data.csv
+awk -F',' 'NR>1 {if($4=="" || $4=="NaN") print }' warehouse_messy_data.csv
+awk -F',' 'NR>1 {if($5=="" || $5=="NaN") print }' warehouse_messy_data.csv
+
+#Empty values found in column 6
+awk -F',' 'NR>1 {if($6=="" || $6=="NaN") print }' warehouse_messy_data.csv
+clear
+
+#Checking the type of values in that column
+awk -F ',' 'NR>1 {print $6}' warehouse_messy_data.csv
+
+#Checking for values other than numeric or empty
+awk -F',' 'NR>1 && $6!="" && $6!="NaN" && $6 !~ /^[0-9]+$/ {print $6}' warehouse_messy_data.csv | sort | uniq
+clear
+
+#Replacing all "two hundred" with the numeric value to match the type of other values in the column
+awk -F',' 'NR==1 {print; next}
+{
+if($6=="two hundred") $6=200
+print
+}' OFS=',' warehouse_messy_data.csv > temp.csv && mv temp.csv warehouse_messy_data.csv
+
+#Printing to see that everything is alright
+awk -F ',' 'NR>1 {print $6}' warehouse_messy_data.csv
+clear
+
+#Replacing all empty values with the mean value
+mean=$(awk -F',' 'NR>1 && $6!="" && $6!="NaN" {sum+=$6; count++} END {print sum/count}' warehouse_messy_data.csv)
+awk -F',' -v avg="$mean" 'NR==1 {print; next}
+{
+if($6=="" || $6=="NaN") $6=avg
+print
+}' OFS=',' warehouse_messy_data.csv > temp.csv && mv temp.csv warehouse_messy_data.csv
+awk -F ',' 'NR>1 {print $6}' warehouse_messy_data.csv
+clear
+awk -F',' 'NR==1 {print; next}
+{
+if($6=="161.401") $6=161
+print
+}' OFS=',' warehouse_messy_data.csv > temp.csv && mv temp.csv warehouse_messy_data.csv
+awk -F ',' 'NR>1 {print $6}' warehouse_messy_data.csv
+clear
+
+#Checking the next columns for empty values
+awk -F ',' 'NR>1 && $7!="" && $7!="NaN" {print $7}' warehouse_messy_data.csv
+clear
+
+#Replacing all empty values with the mean value formatted as a float with 2 digits after the decimal point to match the type of values in that column
+mean=$(awk -F',' 'NR>1 && $7!="" && $7!="NaN" {sum+=$7; count++} END {printf "%.2f", sum/count}' warehouse_messy_data.csv)
+awk -F',' -v avg="$mean" 'NR==1 {print; next}
+{
+if($7=="" || $7=="NaN") $7=avg
+print
+}' OFS=',' warehouse_messy_data.csv > temp.csv && mv temp.csv warehouse_messy_data.csv
+awk -F ',' 'NR>1 {print $7}' warehouse_messy_data.csv
+clear
+
+#Checking the next columns for empty values
+awk -F',' 'NR>1 {if($8=="" || $8=="NaN") print }' warehouse_messy_data.csv
+awk -F',' 'NR>1 {if($9=="" || $9=="NaN") print }' warehouse_messy_data.csv
+awk -F',' 'NR>1 {if($10=="" || $10=="NaN") print }' warehouse_messy_data.csv
+clear
+
+#Checking the type of values in column 10 since there are empty values
+awk -F ',' 'NR>1 {print $10}' warehouse_messy_data.csv
+clear
+
+#Checking the format of date values in column 10
+awk -F',' 'NR>1 {
+if($10!="" && $10!="NaN") {
+split($10, d, "/")
+if(length(d)!=3 || d[1]<1 || d[1]>31 || d[2]<1 || d[2]>12 || d[3]<1970 || d[3]>2025)
+print NR, $10
+}
+}' warehouse_messy_data.csv
+
+#Replacing all empty values with the latest date found in the column
+latest=$(awk -F',' 'NR>1 && $10!="" && $10!="NaN" {
+split($10,d,"/")
+date_val=d[3] d[2] d[1]
+if(date_val>max) max=date_val
+} END {
+if(max!="") {
+printf "%s/%s/%s", substr(max,7,2), substr(max,5,2), substr(max,1,4)
+}
+}' warehouse_messy_data.csv)
+echo $latest
+awk -F',' -v fill="$latest" 'NR==1 {print; next}
+{
+if($10=="" || $10=="NaN") $10=fill
+print
+}' OFS=',' warehouse_messy_data.csv > temp.csv && mv temp.csv warehouse_messy_data.csv
+awk -F ',' 'NR>1 {print $10}' warehouse_messy_data.csv
+clear
+
+#Checking unique values in all columns to verify everything is correct
+awk -F',' 'NR>1 {count[$1]++} END {for(id in count) print id, count[id]}' warehouse_messy_data.csv | sort -k2 -nr
+awk -F',' 'NR>1 {count[$2]++} END {for(entry in count) print entry, count[entry]}' warehouse_messy_data.csv
+awk -F',' 'NR>1 {count[$3]++} END {for(entry in count) print entry, count[entry]}' warehouse_messy_data.csv
+awk -F',' 'NR>1 {count[$4]++} END {for(entry in count) print entry, count[entry]}' warehouse_messy_data.csv
+awk -F',' 'NR>1 {count[$5]++} END {for(entry in count) print entry, count[entry]}' warehouse_messy_data.csv
+awk -F',' 'NR>1 {count[$6]++} END {for(entry in count) print entry, count[entry]}' warehouse_messy_data.csv
+awk -F',' 'NR>1 {count[$7]++} END {for(entry in count) print entry, count[entry]}' warehouse_messy_data.csv
+awk -F',' 'NR>1 {count[$8]++} END {for(entry in count) print entry, count[entry]}' warehouse_messy_data.csv
+awk -F',' 'NR>1 {count[$9]++} END {for(entry in count) print entry, count[entry]}' warehouse_messy_data.csv
+awk -F',' 'NR>1 {count[$10]++} END {for(entry in count) print entry, count[entry]}' warehouse_messy_data.csv
+clear
+
+
+#SCRIPTS FOR STATISTICS
+
+
+# Warehouse Inventory Statistical Analysis Script
+
+# 1. Count Total Records
+awk 'NR>1 {count++} END {print count > "total_records.txt"}' warehouse_messy_data.csv
+
+# 2. Count Unique Categories, Suppliers, Warehouses
+awk -F, 'NR>1 {
+  categories[$3]++;
+  suppliers[$8]++;
+  warehouses[$4]++;
+}
+END {
+  print "UniqueCategories: " length(categories) > "unique_counts.txt"
+  print "UniqueSuppliers: " length(suppliers) >> "unique_counts.txt"
+  print "UniqueWarehouses: " length(warehouses) >> "unique_counts.txt"
+}' warehouse_messy_data.csv
+
+# 3. Min, Max, Average (Mean) Quantities and Prices
+awk -F, 'NR>1 {
+  if(minq==""){minq=maxq=$6; minp=maxp=$7}
+  if($6<minq) minq=$6; if($6>maxq) maxq=$6
+  if($7<minp) minp=$7; if($7>maxp) maxp=$7
+  sumq+=$6; sump+=$7; count++
+}
+END {
+  print "Quantity Min," minq > "quantity_price_stats.csv"
+  print "Quantity Max," maxq >> "quantity_price_stats.csv"
+  print "Quantity Avg," sumq/count >> "quantity_price_stats.csv"
+  print "Price Min," minp >> "quantity_price_stats.csv"
+  print "Price Max," maxp >> "quantity_price_stats.csv"
+  print "Price Avg," sump/count >> "quantity_price_stats.csv"
+}' warehouse_messy_data.csv
+
+
+# 4. Frequency Distribution of Categorical Variables (Category, Status, Supplier)
+awk -F, 'NR>1 {
+  category_count[$3]++;
+  status_count[$9]++;
+  supplier_count[$8]++;
+}
+END {
+  print "Category,Count" > "category_freq.csv"
+  for (c in category_count) print c "," category_count[c] >> "category_freq.csv"
+  
+  print "Status,Count" > "status_freq.csv"
+  for (s in status_count) print s "," status_count[s] >> "status_freq.csv"
+  
+  print "Supplier,Count" > "supplier_freq.csv"
+  for (sup in supplier_count) print sup "," supplier_count[sup] >> "supplier_freq.csv"
+}' warehouse_messy_data.csv
+
+# 5. Quantity and Price Distribution Summary (Min, Q1, Median, Q3, Max)
+
+# Save quantities and prices (skipping header) into separate files
+awk -F, 'NR>1 {print $6}' warehouse_messy_data.csv | sort -n > quantities_sorted.txt
+awk -F, 'NR>1 {print $7}' warehouse_messy_data.csv | sort -n > prices_sorted.txt
+
+# Function to calculate median and quartiles from sorted file (bash/awk hybrid)
+calc_stats() {
+  file=$1
+  total=$(wc -l < "$file")
+  mid=$((total / 2))
+  q1=$((total / 4))
+  q3=$(( (3 * total) / 4 ))
+  median=$(sed -n "$mid p" "$file")
+  q1val=$(sed -n "$q1 p" "$file")
+  q3val=$(sed -n "$q3 p" "$file")
+  min=$(head -n1 "$file")
+  max=$(tail -n1 "$file")
+  echo "$min,$q1val,$median,$q3val,$max"
+}
+
+# Store summary stats into CSV files for gnuplot (column headers included)
+echo "min,Q1,median,Q3,max" > quantity_summary.csv
+calc_stats quantities_sorted.txt >> quantity_summary.csv
+echo "min,Q1,median,Q3,max" > price_summary.csv
+calc_stats prices_sorted.txt >> price_summary.csv
+
+
+# 6. Count of Records by Status (In Stock, Out of Stock, Low Stock)
+awk -F, 'NR>1 {status[$9]++} END {
+  print "Status,Count" > status_counts.csv
+  for (s in status) print s "," status[s] >> status_counts.csv
+}' warehouse_messy_data.csv
+
+# 7. Group-wise Aggregation by Category and Warehouse (Sum and Average Quantity and Price)
+awk -F, 'NR>1 {
+  qty_sum_cat[$3]+=$6; price_sum_cat[$3]+=$7; count_cat[$3]++;
+  qty_sum_wh[$4]+=$6; price_sum_wh[$4]+=$7; count_wh[$4]++;
+}
+END {
+  print "Category,TotalQty,AvgQty,TotalPrice,AvgPrice" > category_agg.csv
+  for (c in count_cat) print c "," qty_sum_cat[c] "," qty_sum_cat[c]/count_cat[c] "," price_sum_cat[c] "," price_sum_cat[c]/count_cat[c] >> category_agg.csv
+  
+  print "Warehouse,TotalQty,AvgQty,TotalPrice,AvgPrice" > warehouse_agg.csv
+  for (w in count_wh) print w "," qty_sum_wh[w] "," qty_sum_wh[w]/count_wh[w] "," price_sum_wh[w] "," price_sum_wh[w]/count_wh[w] >> warehouse_agg.csv
+}' warehouse_messy_data.csv
+
+# 8. Average Price by Category and Supplier
+awk -F, 'NR>1 {
+  sum_price_cat_sup[$3 FS $8]+=$7;
+  count_cat_sup[$3 FS $8]++;
+}
+END {
+  print "Category,Supplier,AvgPrice" > "avg_price_cat_sup.csv";
+  for (key in count_cat_sup) {
+    split(key, arr, FS);
+    cat=arr[1];
+    sup=arr[2];
+    avg=sum_price_cat_sup[key]/count_cat_sup[key];
+    print cat "," sup "," avg >> "avg_price_cat_sup.csv";
+  }
+}' warehouse_messy_data.csv
+
+
+# 9. Total Quantity by Warehouse and Location
+awk -F, 'NR>1 {
+  sum_qty_wh_loc[$4 FS $5]+=$6;
+}
+END {
+  print "Warehouse,Location,TotalQuantity" > "total_qty_wh_loc.csv";
+  for (key in sum_qty_wh_loc) {
+    split(key, arr, FS);
+    wh=arr[1];
+    loc=arr[2];
+    print wh "," loc "," sum_qty_wh_loc[key] >> "total_qty_wh_loc.csv";
+  }
+}' warehouse_messy_data.csv
+
+
+# 10. Count and Sum of Items by Status per Warehouse
+awk -F, 'NR>1{
+  count_status_wh[$4 FS $9]++;
+  sum_qty_status_wh[$4 FS $9]+=$6;
+}
+END{
+  print "Warehouse,Status,Count,TotalQuantity" > "status_count_sum_wh.csv";
+  for (key in count_status_wh) {
+    split(key, arr, FS);
+    wh=arr[1];
+    status=arr[2];
+    print wh "," status "," count_status_wh[key] "," sum_qty_status_wh[key] >> "status_count_sum_wh.csv";
+  }
+}' warehouse_messy_data.csv
+
+
+# 11. Correlation Between Quantity and Price
+awk -F, 'NR>1 {
+  sum_x += $6; sum_y += $7; sum_x2 += ($6)^2; sum_y2 += ($7)^2; sum_xy += ($6)*($7); n++
+}
+END {
+  mean_x = sum_x / n
+  mean_y = sum_y / n
+  numerator = sum_xy - n*mean_x*mean_y
+  denominator = sqrt((sum_x2 - n*mean_x^2)*(sum_y2 - n*mean_y^2))
+  correlation = numerator / denominator
+  print "Correlation_Quantity_Price," correlation > "correlation_qty_price.csv"
+}' warehouse_messy_data.csv
+
+
+# 12. Proportion of Stock Status Within Each Category
+awk -F, 'NR>1 {
+  status_cat[$3 FS $9]++
+  total_cat[$3]++
+  status_sup[$8 FS $9]++
+  total_sup[$8]++
+}
+END {
+  print "Category,Status,Proportion" > "status_proportion_cat.csv"
+  for (k in status_cat) {
+    split(k, arr, FS)
+    cat=arr[1]; stat=arr[2]
+    prop=status_cat[k]/total_cat[cat]
+    print cat "," stat "," prop >> "status_proportion_cat.csv"
+  }
+  print "Supplier,Status,Proportion" > "status_proportion_sup.csv"
+  for (k in status_sup) {
+    split(k, arr, FS)
+    sup=arr[1]; stat=arr[2]
+    prop=status_sup[k]/total_sup[sup]
+    print sup "," stat "," prop >> "status_proportion_sup.csv"
+  }
+}' warehouse_messy_data.csv
+
+
+# 13. Top Suppliers by Total Quantity Supplied
+awk -F, 'NR>1 {
+  qty_sup[$8] += $6;
+}
+END {
+  print "Supplier,TotalQuantity" > top_suppliers.csv;
+  for (sup in qty_sup) print sup "," qty_sup[sup] >> top_suppliers.csv;
+}' warehouse_messy_data.csv
+
+sort -t, -k2 -nr top_suppliers.csv > top_suppliers_sorted.csv
+
+# 14. Per-Warehouse Average Price and Quantity
+awk -F, 'NR>1 {
+  sum_qty_wh[$4] += $6; sum_price_wh[$4] += $7; count_wh[$4]++
+}
+END {
+  print "Warehouse,AvgQuantity,AvgPrice" > "warehouse_avg.csv"
+  for (wh in count_wh)
+    print wh "," sum_qty_wh[wh]/count_wh[wh] "," sum_price_wh[wh]/count_wh[wh] >> "warehouse_avg.csv"
+}' warehouse_messy_data.csv
+
+
+#SCRIPTS FOR VISUALIZATION
+
+
+#Total Quantity vs Total Price per Category
+
+set datafile separator ","
+set terminal pngcairo size 900,600 enhanced
+set output "category_quantity_price.png"
+set title "Category: Total Quantity vs Total Price"
+set style data histograms
+set style histogram clustered gap 1
+set style fill solid 0.7
+set boxwidth 0.8
+set grid ytics
+set key autotitle columnhead
+plot "category_agg.csv" using 2:xtic(1) title "Total Quantity", \
+     '' using 4 title "Total Price"
+
+
+#Price vs Quantity Correlation
+
+set datafile separator ","
+set terminal pngcairo size 900,600 enhanced
+set output "quantity_vs_price.png"
+set title "Category: Average Quantity vs Average Price"
+set xlabel "Average Quantity"
+set ylabel "Average Price"
+set grid
+plot "category_agg.csv" using 3:5:1 with labels offset 1,1 notitle, \
+     '' using 3:5 with points pt 7 ps 2 lc rgb "blue" title "Categories"
+
+
+#Category Frequency
+
+set datafile separator ","
+set terminal pngcairo size 700,500 enhanced
+set output "category_frequency.png"
+set title "Category Frequency"
+set style data histograms
+set style fill solid 0.6
+set boxwidth 0.8
+plot "category_freq.csv" using 2:xtic(1) title "Records"
+
+
+#Total Quantity per Warehouse
+
+awk -F, 'NR>1 {a[$4]+=$6} END{for(i in a) print i, a[i]}' warehouse_messy_data.csv > warehouse_quantity.dat
+
+set boxwidth 0.5
+set style fill solid
+set title "Total Quantity per Warehouse"
+set xlabel "Warehouse"
+set ylabel "Total Quantity"
+set xtics rotate by -45
+plot "warehouse_quantity.dat" using 2:xtic(1) with boxes title "Quantity"
+
